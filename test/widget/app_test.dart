@@ -235,6 +235,27 @@ void main() {
     expect(find.text('dart-lang/sdk'), findsOneWidget);
   });
 
+  testWidgets('the Undo snackbar is dismissed when switching tabs', (
+    tester,
+  ) async {
+    await pumpApp(
+      tester,
+      prefsValues: {
+        SharedPreferencesFavoritesStorage.storageKey:
+            '[{"id":7,"full_name":"dart-lang/sdk","avatar_url":""}]',
+      },
+    );
+    await tester.tap(find.text('Star'));
+    await tester.pumpAndSettle();
+    await tester.tap(starOf(7).hitTestable());
+    await tester.pumpAndSettle();
+    expect(find.text('Removed dart-lang/sdk'), findsOneWidget);
+
+    await tester.tap(find.text('Search').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Removed dart-lang/sdk'), findsNothing);
+  });
+
   testWidgets('detail screen shows an error with Retry', (tester) async {
     var fail = true;
     github.onSearch = (q, p) => page(firstId: 1, count: 1, totalCount: 1);

@@ -27,6 +27,9 @@ class HomeShell extends ConsumerWidget {
         onTap: (i) {
           // Dismiss the keyboard when leaving the search tab.
           FocusScope.of(context).unfocus();
+          // A snackbar belongs to the tab that showed it (e.g. "Removed ...
+          // Undo" on the Star tab), so don't let it linger on the other one.
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
           ref.read(selectedTabProvider.notifier).select(i);
         },
         items: [
