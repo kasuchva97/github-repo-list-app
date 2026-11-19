@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:github_repo_list/app.dart';
@@ -8,6 +9,7 @@ import 'package:github_repo_list/core/providers.dart';
 import 'package:github_repo_list/features/favorites/data/favorites_storage.dart';
 import 'package:github_repo_list/features/repositories/application/search_controller.dart';
 import 'package:github_repo_list/features/repositories/data/models/repository_detail.dart';
+import 'package:github_repo_list/features/repositories/data/models/search_filters.dart';
 import 'package:github_repo_list/features/repositories/data/models/search_page.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -259,5 +261,209 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(find.text('12'), findsOneWidget);
+  });
+
+  testWidgets('Home shows suggestions, then recent searches after a search', (
+    tester,
+  ) async {
+    github.onSearch = (q, p) => page(firstId: 1, count: 2, totalCount: 2);
+    await pumpApp(tester);
+
+    expect(find.byKey(const Key('suggestion-flutter')), findsOneWidget);
+    expect(find.text('Recent searches'), findsNothing);
+
+    await typeQuery(tester, 'riverpod');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Clear'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent searches'), findsOneWidget);
+    expect(find.byKey(const ValueKey('recent-riverpod')), findsOneWidget);
+
+    // Tapping a recent search fills the box and searches again.
+    await tester.tap(find.byKey(const ValueKey('recent-riverpod')));
+    await tester.pumpAndSettle();
+    expect(find.text('owner1/repo1'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('search-field')))
+          .controller!
+          .text,
+      'riverpod',
+    );
+  });
+
+  testWidgets('tapping a suggestion searches for it', (tester) async {
+    github.onSearch = (q, p) => page(firstId: 1, count: 1, totalCount: 1);
+    await pumpApp(tester);
+
+    await tester.tap(find.byKey(const ValueKey('suggestion-dart')));
+    await tester.pumpAndSettle();
+
+    expect(github.searchCalls.first, ('dart', 1));
+    expect(find.text('owner1/repo1'), findsOneWidget);
+  });
+
+  // Queries of first-page requests (later pages load automatically when the
+  // short fake result list leaves the footer in view).
+  List<String> firstPageQueries() => [
+    for (final (query, page) in github.searchCalls)
+      if (page == 1) query,
+  ];
+
+  testWidgets('sort menu and language chips refine the search', (tester) async {
+    github.onSearch = (q, p) => page(firstId: 1, count: 2, totalCount: 1234);
+    await pumpApp(tester);
+    await typeQuery(tester, 'flutter');
+    await tester.pumpAndSettle();
+
+    expect(find.text('1,234 repositories'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('sort-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(CheckedPopupMenuItem<SearchSort>, 'Most stars'),
+    );
+    await tester.pumpAndSettle();
+    expect(github.sortCalls.last, SearchSort.stars);
+
+    await tester.tap(find.byKey(const ValueKey('lang-Dart')));
+    await tester.pumpAndSettle();
+    expect(firstPageQueries().last, 'flutter language:Dart');
+    expect(github.sortCalls.last, SearchSort.stars);
+
+    // Tapping the selected chip again removes the filter.
+    await tester.tap(find.byKey(const ValueKey('lang-Dart')));
+    await tester.pumpAndSettle();
+    expect(firstPageQueries().last, 'flutter');
+  });
+
+  testWidgets('empty results with filters offer to reset them', (tester) async {
+    github.onSearch = (q, p) => q.contains('language:')
+        ? const SearchPage(totalCount: 0, items: [])
+        : page(firstId: 1, count: 1, totalCount: 1);
+    await pumpApp(tester);
+    await typeQuery(tester, 'flutter');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('lang-Dart')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('search-empty')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('reset-filters')));
+    await tester.pumpAndSettle();
+    expect(find.text('owner1/repo1'), findsOneWidget);
+  });
+
+  testWidgets('detail shows topics, license and last update; topic jumps '
+      'to Search', (tester) async {
+    github.onSearch = (q, p) => page(firstId: 1, count: 1, totalCount: 1);
+    github.onFetch = (fullName) => RepositoryDetail(
+      id: 1,
+      fullName: fullName,
+      ownerAvatarUrl: '',
+      subscribersCount: 5,
+      language: 'Dart',
+      licenseName: 'MIT',
+      topics: const ['widgets', 'mobile'],
+      pushedAt: DateTime.now().subtract(const Duration(days: 3)),
+    );
+    await pumpApp(tester);
+    await typeQuery(tester, 'flutter');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('owner1/repo1'));
+    await tester.pumpAndSettle();
+    expect(find.text('MIT'), findsOneWidget);
+    expect(find.text('Updated 3 days ago'), findsOneWidget);
+    expect(find.text('widgets'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('widgets'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('widgets'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('detail-full-name')), findsNothing);
+    expect(github.searchCalls.last.$1, 'widgets');
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('search-field')))
+          .controller!
+          .text,
+      'widgets',
+    );
+  });
+
+  testWidgets('copy link button copies the GitHub URL', (tester) async {
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        }
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    github.onSearch = (q, p) => page(firstId: 1, count: 1, totalCount: 1);
+    github.onFetch = (fullName) => RepositoryDetail(
+      id: 1,
+      fullName: fullName,
+      ownerAvatarUrl: '',
+      subscribersCount: 1,
+    );
+    await pumpApp(tester);
+    await typeQuery(tester, 'flutter');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('owner1/repo1'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('copy-link')));
+    await tester.pump();
+
+    expect(copied, 'https://github.com/owner1/repo1');
+    expect(find.text('Link copied'), findsOneWidget);
+  });
+
+  testWidgets('favorites can be filtered and swiped away', (tester) async {
+    final entries = [
+      for (var i = 1; i <= 6; i++)
+        '{"id":$i,"full_name":"${i.isEven ? 'dart-lang' : 'flutter'}/r$i",'
+            '"avatar_url":""}',
+    ];
+    await pumpApp(
+      tester,
+      prefsValues: {
+        SharedPreferencesFavoritesStorage.storageKey: '[${entries.join(',')}]',
+      },
+    );
+    await tester.tap(find.text('Star'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Favorites (6)'), findsOneWidget);
+    await tester.enterText(find.byKey(const Key('favorites-filter')), 'dart');
+    await tester.pumpAndSettle();
+    expect(find.text('dart-lang/r2'), findsOneWidget);
+    expect(find.text('flutter/r1'), findsNothing);
+
+    await tester.enterText(find.byKey(const Key('favorites-filter')), 'nope');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('favorites-no-match')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('favorites-filter')), '');
+    await tester.pumpAndSettle();
+    await tester.drag(find.text('flutter/r1'), const Offset(-600, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('flutter/r1'), findsNothing);
+    expect(find.text('Favorites (5)'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(find.text('flutter/r1'), findsOneWidget);
   });
 }

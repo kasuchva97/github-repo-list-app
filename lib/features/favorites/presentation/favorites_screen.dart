@@ -9,16 +9,38 @@ import '../application/favorites_controller.dart';
 
 /// Star tab: the favorited repositories, newest first.
 ///
-/// Tapping the star removes the repository (with an Undo snackbar).
-class FavoritesScreen extends ConsumerWidget {
+/// Tapping the star (or swiping a row away) removes the repository, with an
+/// Undo snackbar. A filter field appears once the list gets long.
+class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key});
 
+  /// The filter field is only useful for longer lists.
+  static const int filterThreshold = 5;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FavoritesScreen> createState() => _FavoritesScreenState();
+}
+
+class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
+  String _filter = '';
+
+  @override
+  Widget build(BuildContext context) {
     final favorites = ref.watch(favoritesProvider);
+    final showFilter = favorites.length >= FavoritesScreen.filterThreshold;
+    final needle = showFilter ? _filter.trim().toLowerCase() : '';
+    final visible = needle.isEmpty
+        ? favorites
+        : favorites
+              .where((r) => r.fullName.toLowerCase().contains(needle))
+              .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Favorites')),
+      appBar: AppBar(
+        title: Text(
+          favorites.isEmpty ? 'Favorites' : 'Favorites (${favorites.length})',
+        ),
+      ),
       body: favorites.isEmpty
           ? const StatusView(
               key: Key('favorites-empty'),
@@ -28,43 +50,99 @@ class FavoritesScreen extends ConsumerWidget {
                   'Tap the star next to a repository in Search '
                   'to keep it here.',
             )
-          : ListView.separated(
-              key: const Key('favorites-list'),
-              itemCount: favorites.length,
-              separatorBuilder: (_, _) => const Divider(height: 1, indent: 72),
-              itemBuilder: (context, index) {
-                final repo = favorites[index];
-                return ListTile(
-                  key: ValueKey(repo.id),
-                  leading: OwnerAvatar(url: repo.ownerAvatarUrl),
-                  title: Text(
-                    repo.fullName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: IconButton(
-                    key: ValueKey('favorite-${repo.id}'),
-                    tooltip: 'Remove from favorites',
-                    isSelected: true,
-                    icon: const Icon(Icons.star_border),
-                    selectedIcon: Icon(
-                      Icons.star,
-                      color: Theme.of(context).colorScheme.tertiary,
+          : Column(
+              children: [
+                if (showFilter)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: TextField(
+                      key: const Key('favorites-filter'),
+                      onChanged: (value) => setState(() => _filter = value),
+                      autocorrect: false,
+                      decoration: InputDecoration(
+                        hintText: 'Filter favorites',
+                        prefixIcon: const Icon(Icons.filter_list),
+                        filled: true,
+                        isDense: true,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(28),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
                     ),
-                    onPressed: () => _remove(context, ref, repo),
                   ),
-                  onTap: () => RepositoryDetailScreen.open(context, repo),
-                );
-              },
+                Expanded(
+                  child: visible.isEmpty
+                      ? StatusView(
+                          key: const Key('favorites-no-match'),
+                          icon: Icons.search_off,
+                          title: 'No matching favorites',
+                          message: 'None of your favorites match "$_filter".',
+                        )
+                      : ListView.separated(
+                          key: const Key('favorites-list'),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          itemCount: visible.length,
+                          separatorBuilder: (_, _) =>
+                              const Divider(height: 1, indent: 72),
+                          itemBuilder: (context, index) =>
+                              _FavoriteTile(repo: visible[index]),
+                        ),
+                ),
+              ],
             ),
     );
   }
+}
 
-  Future<void> _remove(
-    BuildContext context,
-    WidgetRef ref,
-    RepositorySummary repo,
-  ) async {
+class _FavoriteTile extends ConsumerWidget {
+  const _FavoriteTile({required this.repo});
+
+  final RepositorySummary repo;
+
+  String get _heroTag => 'favorite-avatar-${repo.id}';
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).colorScheme;
+
+    return Dismissible(
+      key: ValueKey('dismiss-${repo.id}'),
+      direction: DismissDirection.endToStart,
+      background: ColoredBox(
+        color: colors.errorContainer,
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 24),
+            child: Icon(Icons.star_border, color: colors.onErrorContainer),
+          ),
+        ),
+      ),
+      onDismissed: (_) => _remove(context, ref),
+      child: ListTile(
+        leading: OwnerAvatar(url: repo.ownerAvatarUrl, heroTag: _heroTag),
+        title: Text(
+          repo.fullName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: IconButton(
+          key: ValueKey('favorite-${repo.id}'),
+          tooltip: 'Remove from favorites',
+          isSelected: true,
+          icon: const Icon(Icons.star_border),
+          selectedIcon: Icon(Icons.star, color: colors.tertiary),
+          onPressed: () => _remove(context, ref),
+        ),
+        onTap: () =>
+            RepositoryDetailScreen.open(context, repo, heroTag: _heroTag),
+      ),
+    );
+  }
+
+  Future<void> _remove(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
     final controller = ref.read(favoritesProvider.notifier);
     try {

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../core/providers.dart';
 import '../favorites/application/favorites_controller.dart';
 import '../favorites/presentation/favorites_screen.dart';
 import '../repositories/presentation/search_screen.dart';
@@ -9,30 +10,24 @@ import '../repositories/presentation/search_screen.dart';
 ///
 /// Tabs live in an [IndexedStack] so each keeps its state (query, results,
 /// scroll position) when the user switches back and forth.
-class HomeShell extends ConsumerStatefulWidget {
+class HomeShell extends ConsumerWidget {
   const HomeShell({super.key});
-
-  @override
-  ConsumerState<HomeShell> createState() => _HomeShellState();
-}
-
-class _HomeShellState extends ConsumerState<HomeShell> {
-  int _index = 0;
 
   static const _tabs = [SearchScreen(), FavoritesScreen()];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final index = ref.watch(selectedTabProvider);
     final favoriteCount = ref.watch(favoritesProvider.select((f) => f.length));
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: _tabs),
+      body: IndexedStack(index: index, children: _tabs),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (index) {
+        currentIndex: index,
+        onTap: (i) {
           // Dismiss the keyboard when leaving the search tab.
           FocusScope.of(context).unfocus();
-          setState(() => _index = index);
+          ref.read(selectedTabProvider.notifier).select(i);
         },
         items: [
           const BottomNavigationBarItem(

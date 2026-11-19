@@ -1,6 +1,7 @@
 import '../../../core/network/api_exception.dart';
 import '../../../core/network/github_http_client.dart';
 import 'models/repository_detail.dart';
+import 'models/search_filters.dart';
 import 'models/search_page.dart';
 
 /// Data source for GitHub repositories.
@@ -19,6 +20,7 @@ abstract interface class GitHubRepository {
     String query, {
     required int page,
     int perPage = defaultPageSize,
+    SearchSort sort = SearchSort.bestMatch,
   });
 
   /// `GET /repos/{owner}/{repo}`
@@ -39,11 +41,17 @@ class GitHubRepositoryImpl implements GitHubRepository {
     String query, {
     required int page,
     int perPage = GitHubRepository.defaultPageSize,
+    SearchSort sort = SearchSort.bestMatch,
   }) async {
     assert(page >= 1, 'GitHub pages are 1-based');
     final json = await _client.getJson(
       '/search/repositories',
-      queryParameters: {'q': query, 'page': '$page', 'per_page': '$perPage'},
+      queryParameters: {
+        'q': query,
+        'page': '$page',
+        'per_page': '$perPage',
+        if (sort.apiValue != null) ...{'sort': sort.apiValue!, 'order': 'desc'},
+      },
     );
     return _parse(() => SearchPage.fromJson(json));
   }

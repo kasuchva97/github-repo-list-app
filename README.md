@@ -6,6 +6,18 @@ A Flutter app for Android and iOS that searches public GitHub repositories, show
 | --- | --- | --- |
 | Search box, Home / Empty / Error / Loading states, infinite scroll, star toggle per row | `full_name`, owner avatar, `subscribers_count` (plus stars, forks, issues) and a star toggle | Favorites (newest first), star toggle removes with **Undo** |
 
+## Beyond the spec
+
+Extras that make the app nicer to use. None of them needed additional packages.
+
+- **Recent searches and suggestions** on the Home screen. The last 8 successful searches are stored in `shared_preferences`, and each can be tapped to repeat it or removed. Suggestion chips help first-time users.
+- **Sort** by best match, most stars, most forks or recently updated, and **language filter chips** (Dart, Kotlin, Swift, ...). Both apply to every page and re-run the search; if nothing matches, a "Reset filters" button appears.
+- **Result count** ("12,829 repositories") above the list.
+- **Skeleton loading** placeholders instead of a lone spinner.
+- **Favorites tab:** the count in the title, a filter field once the list has 5 or more entries, **swipe to remove** and Undo.
+- **Detail screen:** topics (tap one to search for it), license, "Updated 3 days ago", **copy link**, and a hero animation of the avatar from the list.
+- **Haptic feedback** when starring, and light and dark themes.
+
 ## Requirements
 
 - Flutter **3.47 or higher** (developed and tested with Flutter 3.50.0 / Dart 3.14.0, the current stable release)
@@ -31,7 +43,7 @@ Quality checks:
 
 ```bash
 flutter analyze             # static analysis (strict casts / raw types + extra lints)
-flutter test                # 41 unit and widget tests
+flutter test                # 63 unit and widget tests
 ```
 
 No API token is needed. The app calls the GitHub REST API without an `Authorization` header, as the assignment requires.
@@ -63,6 +75,7 @@ lib/
 │   └── widgets/                   # StatusView (home/empty/error), OwnerAvatar, error messages
 └── features/
     ├── home/home_shell.dart       # BottomNavigationBar + IndexedStack (Search, Star)
+    ├── history/                   # recent searches (Notifier + shared_preferences) and the Home view
     ├── repositories/
     │   ├── data/                  # GitHubRepository interface + impl, models
     │   ├── application/           # RepositorySearchController (Notifier), detail FutureProvider
@@ -103,7 +116,7 @@ lib/
 - **No stale results.** Each search increments a generation counter, and a response is applied only if its generation is still current. A slow response for "flut" can never overwrite the results for "flutter", and clearing the box cancels anything in flight.
 - **Pagination.** Pages are requested with `page` and `per_page=30`. The last row of the list is a load-more trigger that fires when it is built, which happens as it comes within the list's cache extent. This also handles a first page too short to scroll, where a scroll listener would never fire. The controller ignores `loadMore` while a page is loading, after an error and at the end, so pages are never requested twice.
 - **End of results.** Loading stops at `total_count`, on an empty page, or at **GitHub's 1,000 result cap** for search (a 422 past the cap also ends pagination quietly). The footer then shows "N of M repositories".
-- **Duplicates.** GitHub's ranking can shift between page requests, so rows already in the list are dropped by `id`.
+- **Duplicates.** GitHub's ranking can shift between page requests, so rows already in the list are dropped by `id`. A page that adds nothing new ends the list, so loading can never go on forever.
 - **Errors.** A first-page failure shows a full-screen error with **Retry**. A later-page failure keeps the loaded results and shows an inline Retry in the footer. Pull to refresh reloads while keeping the current results on screen.
 - The search tab keeps its query, results and scroll position when you switch tabs (`IndexedStack` plus a kept-alive notifier).
 
@@ -155,9 +168,10 @@ Limit: 60 requests per hour without authentication.
 
 ## Tests
 
-41 tests, run with `flutter test`:
+63 tests, run with `flutter test`:
 
 - `test/unit/github_repository_test.dart` covers request building (path, query encoding, headers, no auth), JSON parsing, and mapping each HTTP and network failure to its exception (using `MockClient`).
 - `test/unit/search_controller_test.dart` covers the first page, the Empty state, pagination to the end, the 1,000 result cap, 422 handling, concurrent `loadMore` calls sending a single request, stale responses being dropped, de-duplication, error and retry for both the first and later pages, clearing, and the debounce.
 - `test/unit/favorites_controller_test.dart` covers toggle, the persisted JSON shape, ordering and undo, restoring after a restart, corrupt data, and rollback when a save fails.
-- `test/widget/app_test.dart` runs the full app with a fake API and covers Home → Loading → Results, Empty, Error and Retry, clear, infinite scroll, **star sync between the list, detail, Star tab and storage**, favorites loaded at launch, Undo, and the detail error with Retry.
+- `test/unit/search_filters_and_history_test.dart` covers filter query building, filters applying to every page, recent-search recording, de-duplication, capping and persistence, and the number and time formatters.
+- `test/widget/app_test.dart` runs the full app with a fake API and covers Home → Loading → Results, Empty, Error and Retry, clear, infinite scroll, **star sync between the list, detail, Star tab and storage**, favorites loaded at launch, Undo, the detail error with Retry, recent searches and suggestions, sort and language filters, topics and copy link on the detail screen, and favorites filtering and swipe to remove.

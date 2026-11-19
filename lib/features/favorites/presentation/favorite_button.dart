@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -36,6 +39,7 @@ Future<void> toggleFavorite(
   RepositorySummary repository,
 ) async {
   final messenger = ScaffoldMessenger.maybeOf(context);
+  unawaited(HapticFeedback.selectionClick());
   try {
     await ref.read(favoritesProvider.notifier).toggle(repository);
   } on FavoritesPersistenceException {

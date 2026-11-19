@@ -5,6 +5,7 @@ import 'package:github_repo_list/core/providers.dart';
 import 'package:github_repo_list/features/repositories/data/github_repository.dart';
 import 'package:github_repo_list/features/repositories/data/models/repository_detail.dart';
 import 'package:github_repo_list/features/repositories/data/models/repository_summary.dart';
+import 'package:github_repo_list/features/repositories/data/models/search_filters.dart';
 import 'package:github_repo_list/features/repositories/data/models/search_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -37,6 +38,7 @@ class FakeGitHubRepository implements GitHubRepository {
       throw UnimplementedError();
 
   final List<(String, int)> searchCalls = [];
+  final List<SearchSort> sortCalls = [];
   final List<String> fetchCalls = [];
 
   @override
@@ -44,8 +46,10 @@ class FakeGitHubRepository implements GitHubRepository {
     String query, {
     required int page,
     int perPage = GitHubRepository.defaultPageSize,
+    SearchSort sort = SearchSort.bestMatch,
   }) async {
     searchCalls.add((query, page));
+    sortCalls.add(sort);
     return onSearch(query, page);
   }
 

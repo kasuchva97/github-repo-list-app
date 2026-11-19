@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../data/models/repository_summary.dart';
+import '../data/models/search_filters.dart';
 
 /// Immutable state of the search screen.
 ///
@@ -15,6 +16,7 @@ import '../data/models/repository_summary.dart';
 class SearchState {
   const SearchState({
     this.query = '',
+    this.filters = const SearchFilters(),
     this.items = const [],
     this.totalCount = 0,
     this.nextPage = 1,
@@ -27,6 +29,7 @@ class SearchState {
 
   /// The trimmed query whose results are in [items].
   final String query;
+  final SearchFilters filters;
   final List<RepositorySummary> items;
   final int totalCount;
 
@@ -55,6 +58,7 @@ class SearchState {
 
   SearchState copyWith({
     String? query,
+    SearchFilters? filters,
     List<RepositorySummary>? items,
     int? totalCount,
     int? nextPage,
@@ -66,6 +70,7 @@ class SearchState {
   }) {
     return SearchState(
       query: query ?? this.query,
+      filters: filters ?? this.filters,
       items: items ?? this.items,
       totalCount: totalCount ?? this.totalCount,
       nextPage: nextPage ?? this.nextPage,

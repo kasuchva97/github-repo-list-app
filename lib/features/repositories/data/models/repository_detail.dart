@@ -16,6 +16,10 @@ class RepositoryDetail {
     this.stargazersCount = 0,
     this.forksCount = 0,
     this.openIssuesCount = 0,
+    this.topics = const [],
+    this.licenseName,
+    this.pushedAt,
+    this.createdAt,
   });
 
   factory RepositoryDetail.fromJson(Map<String, dynamic> json) {
@@ -35,6 +39,16 @@ class RepositoryDetail {
       stargazersCount: json['stargazers_count'] as int? ?? 0,
       forksCount: json['forks_count'] as int? ?? 0,
       openIssuesCount: json['open_issues_count'] as int? ?? 0,
+      topics: (json['topics'] as List<dynamic>? ?? const [])
+          .whereType<String>()
+          .toList(growable: false),
+      licenseName: switch (json['license']) {
+        {'spdx_id': final String id} when id != 'NOASSERTION' => id,
+        {'name': final String name} => name,
+        _ => null,
+      },
+      pushedAt: DateTime.tryParse(json['pushed_at'] as String? ?? ''),
+      createdAt: DateTime.tryParse(json['created_at'] as String? ?? ''),
     );
   }
 
@@ -48,6 +62,12 @@ class RepositoryDetail {
   final int stargazersCount;
   final int forksCount;
   final int openIssuesCount;
+  final List<String> topics;
+  final String? licenseName;
+
+  /// Time of the last push (last activity).
+  final DateTime? pushedAt;
+  final DateTime? createdAt;
 
   RepositorySummary toSummary() => RepositorySummary(
     id: id,

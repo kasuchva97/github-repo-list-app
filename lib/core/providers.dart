@@ -39,3 +39,16 @@ final favoritesStorageProvider = Provider<FavoritesStorage>(
   (ref) =>
       SharedPreferencesFavoritesStorage(ref.watch(sharedPreferencesProvider)),
 );
+
+/// Index of the selected bottom navigation tab (0 = Search, 1 = Star).
+///
+/// A provider (rather than widget state) so other screens can switch tabs,
+/// e.g. tapping a topic on the detail screen jumps to Search.
+final selectedTabProvider = NotifierProvider<SelectedTab, int>(SelectedTab.new);
+
+class SelectedTab extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void select(int index) => state = index;
+}

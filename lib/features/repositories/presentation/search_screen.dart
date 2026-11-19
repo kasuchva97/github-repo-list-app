@@ -3,9 +3,13 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../../core/widgets/error_messages.dart';
 import '../../../core/widgets/status_view.dart';
+import '../../history/presentation/search_home_view.dart';
 import '../application/search_controller.dart';
 import '../application/search_state.dart';
+import '../data/models/search_filters.dart';
 import 'widgets/repository_tile.dart';
+import 'widgets/search_filter_bar.dart';
+import 'widgets/skeleton_list.dart';
 
 /// Search tab: a search box and the result list with infinite scroll.
 class SearchScreen extends ConsumerStatefulWidget {
@@ -36,6 +40,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   RepositorySearchController get _search =>
       ref.read(repositorySearchProvider.notifier);
 
+  void _pick(String query) {
+    FocusScope.of(context).unfocus();
+    _textController.text = query;
+    _search.search(query);
+  }
+
   void _clear() {
     _textController.clear();
     _search.clear();
@@ -47,6 +57,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref.listen(repositorySearchProvider.select((s) => s.query), (prev, next) {
       if (prev != next && _scrollController.hasClients) {
         _scrollController.jumpTo(0);
+      }
+    });
+    // Keep the text field in sync when the query is set from elsewhere
+    // (recent search, suggestion chip, or a topic tapped on the detail screen).
+    ref.listen(repositorySearchProvider.select((s) => s.query), (_, next) {
+      if (next.isNotEmpty && next != _textController.text.trim()) {
+        _textController.value = TextEditingValue(
+          text: next,
+          selection: TextSelection.collapsed(offset: next.length),
+        );
       }
     });
     final state = ref.watch(repositorySearchProvider);
@@ -67,12 +87,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           ),
         ),
       ),
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 200),
-        child: KeyedSubtree(
-          key: ValueKey(_viewKey(state)),
-          child: _buildBody(state),
-        ),
+      body: Column(
+        children: [
+          if (!state.isIdle) SearchFilterBar(state: state),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: KeyedSubtree(
+                key: ValueKey(_viewKey(state)),
+                child: _buildBody(state),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -87,20 +114,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   Widget _buildBody(SearchState state) {
     if (state.isIdle) {
-      return const StatusView(
-        key: Key('search-home'),
-        icon: Icons.travel_explore,
-        title: 'Search GitHub repositories',
-        message:
-            'Type a keyword above, such as "flutter" or "riverpod", '
-            'and tap the star to save repositories to your favorites.',
-      );
+      return SearchHomeView(onPick: _pick);
     }
     if (state.isLoading) {
-      return const Center(
-        key: Key('search-loading'),
-        child: CircularProgressIndicator(),
-      );
+      return const SkeletonList(key: Key('search-loading'));
     }
     if (state.error case final error?) {
       return StatusView(
@@ -121,8 +138,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         icon: Icons.search_off,
         title: 'No repositories found',
         message:
-            'Nothing matches "${state.query}". '
+            'Nothing matches "${state.query}"'
+            '${state.filters.isDefault ? '' : ' with the current filters'}. '
             'Check the spelling or try a broader keyword.',
+        action: state.filters.isDefault
+            ? null
+            : OutlinedButton(
+                key: const Key('reset-filters'),
+                onPressed: () => _search.setFilters(const SearchFilters()),
+                child: const Text('Reset filters'),
+              ),
       );
     }
     return _ResultList(state: state, scrollController: _scrollController);

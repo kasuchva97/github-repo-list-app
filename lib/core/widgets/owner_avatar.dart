@@ -5,10 +5,18 @@ import 'package:material_ui/material_ui.dart';
 /// Shows a person icon while loading and if the image fails (offline, 404),
 /// and requests a size-appropriate image from GitHub's avatar CDN.
 class OwnerAvatar extends StatelessWidget {
-  const OwnerAvatar({super.key, required this.url, this.size = 40});
+  const OwnerAvatar({
+    super.key,
+    required this.url,
+    this.size = 40,
+    this.heroTag,
+  });
 
   final String url;
   final double size;
+
+  /// When set, the avatar animates between screens (list → detail).
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +33,7 @@ class OwnerAvatar extends StatelessWidget {
         .round()
         .clamp(1, 460);
 
-    return ExcludeSemantics(
+    final avatar = ExcludeSemantics(
       child: ClipOval(
         child: SizedBox.square(
           dimension: size,
@@ -44,6 +52,8 @@ class OwnerAvatar extends StatelessWidget {
         ),
       ),
     );
+    final tag = heroTag;
+    return tag == null ? avatar : Hero(tag: tag, child: avatar);
   }
 }
 

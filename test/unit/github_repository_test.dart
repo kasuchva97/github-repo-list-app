@@ -6,6 +6,7 @@ import 'package:github_repo_list/core/network/api_exception.dart';
 import 'package:github_repo_list/core/network/github_http_client.dart';
 import 'package:github_repo_list/core/widgets/error_messages.dart';
 import 'package:github_repo_list/features/repositories/data/github_repository.dart';
+import 'package:github_repo_list/features/repositories/data/models/search_filters.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -82,6 +83,19 @@ void main() {
       );
       expect(page.items.first.language, 'Dart');
       expect(page.items.last.description, isNull);
+    });
+
+    test('sends sort and order only for non-default sorts', () async {
+      final repository = repositoryFor(
+        (_) => json({'total_count': 0, 'items': []}),
+      );
+
+      await repository.searchRepositories('x', page: 1);
+      expect(lastRequest.url.queryParameters.containsKey('sort'), isFalse);
+
+      await repository.searchRepositories('x', page: 1, sort: SearchSort.stars);
+      expect(lastRequest.url.queryParameters['sort'], 'stars');
+      expect(lastRequest.url.queryParameters['order'], 'desc');
     });
 
     test('maps 403 with exhausted quota to RateLimitException', () async {
@@ -194,6 +208,42 @@ void main() {
         expect(detail.fullName, 'flutter/flutter');
       },
     );
+
+    test('parses topics, license and dates', () async {
+      final repository = repositoryFor(
+        (_) => json({
+          'id': 1,
+          'full_name': 'a/b',
+          'subscribers_count': 1,
+          'topics': ['flutter', 'dart', 42],
+          'license': {'spdx_id': 'BSD-3-Clause', 'name': 'BSD 3-Clause'},
+          'pushed_at': '2026-11-01T10:00:00Z',
+          'owner': {'avatar_url': 'x'},
+        }),
+      );
+      final detail = await repository.fetchRepository('a/b');
+      expect(detail.topics, ['flutter', 'dart']);
+      expect(detail.licenseName, 'BSD-3-Clause');
+      expect(detail.pushedAt, DateTime.utc(2026, 11, 1, 10));
+    });
+
+    test('tolerates a missing license and NOASSERTION', () async {
+      var license = <String, Object?>{
+        'spdx_id': 'NOASSERTION',
+        'name': 'Other',
+      };
+      final repository = repositoryFor(
+        (_) => json({
+          'id': 1,
+          'full_name': 'a/b',
+          'license': license,
+          'owner': {'avatar_url': 'x'},
+        }),
+      );
+      expect((await repository.fetchRepository('a/b')).licenseName, 'Other');
+      license = {};
+      expect((await repository.fetchRepository('a/b')).licenseName, isNull);
+    });
 
     test('maps 404 to NotFoundException', () {
       final repository = repositoryFor(

@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../../../../core/format.dart';
 import '../../../../core/widgets/owner_avatar.dart';
 import '../../../favorites/presentation/favorite_button.dart';
 import '../../data/models/repository_summary.dart';
@@ -12,6 +13,8 @@ class RepositoryTile extends StatelessWidget {
 
   final RepositorySummary repository;
 
+  String get heroTag => 'search-avatar-${repository.id}';
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -23,7 +26,7 @@ class RepositoryTile extends StatelessWidget {
     ].join('  ·  ');
 
     return ListTile(
-      leading: OwnerAvatar(url: repository.ownerAvatarUrl),
+      leading: OwnerAvatar(url: repository.ownerAvatarUrl, heroTag: heroTag),
       title: Text(
         repository.fullName,
         maxLines: 1,
@@ -41,19 +44,8 @@ class RepositoryTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
       trailing: FavoriteButton(repository: repository),
-      onTap: () => RepositoryDetailScreen.open(context, repository),
+      onTap: () =>
+          RepositoryDetailScreen.open(context, repository, heroTag: heroTag),
     );
   }
-}
-
-/// 1234 → "1.2k", 1500000 → "1.5M".
-String compactNumber(int value) {
-  if (value < 1000) return '$value';
-  if (value < 1000000) return '${_trim(value / 1000)}k';
-  return '${_trim(value / 1000000)}M';
-}
-
-String _trim(double v) {
-  final s = v >= 100 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
-  return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
 }

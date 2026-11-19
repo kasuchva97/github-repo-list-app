@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exception.dart';
 import '../../../core/providers.dart';
+import '../../history/application/search_history_controller.dart';
 import '../data/github_repository.dart';
 import '../data/models/repository_summary.dart';
+import '../data/models/search_filters.dart';
 import 'search_state.dart';
 
 /// How long to wait after the last keystroke before searching. GitHub allows
@@ -62,15 +64,31 @@ class RepositorySearchController extends Notifier<SearchState> {
     // Same query already loaded or loading: nothing to do.
     if (!force && query == state.query && state.error == null) return;
 
+    final filters = state.filters;
     final generation = ++_generation;
-    state = SearchState(query: query, isLoading: true);
+    state = SearchState(query: query, filters: filters, isLoading: true);
 
     try {
-      final next = await _fetchFirstPage(query);
-      if (_isCurrent(generation)) state = next;
+      final next = await _fetchFirstPage(query, filters);
+      if (!_isCurrent(generation)) return;
+      state = next;
+      // Only successful, non-empty searches are worth remembering.
+      if (next.items.isNotEmpty) {
+        unawaited(ref.read(searchHistoryProvider.notifier).record(query));
+      }
     } on Object catch (e) {
-      if (_isCurrent(generation)) state = SearchState(query: query, error: e);
+      if (_isCurrent(generation)) {
+        state = SearchState(query: query, filters: filters, error: e);
+      }
     }
+  }
+
+  /// Applies new filters and re-runs the current search.
+  Future<void> setFilters(SearchFilters filters) async {
+    if (filters == state.filters) return;
+    state = state.copyWith(filters: filters);
+    if (state.query.isEmpty) return;
+    await search(state.query, force: true);
   }
 
   /// Pull-to-refresh: reloads the first page of the current query while
@@ -84,14 +102,22 @@ class RepositorySearchController extends Notifier<SearchState> {
     final generation = ++_generation;
     // Drop any in-flight page load: its generation is now stale.
     state = state.copyWith(isLoadingMore: false, loadMoreError: () => null);
-    final next = await _fetchFirstPage(query);
+    final next = await _fetchFirstPage(query, state.filters);
     if (_isCurrent(generation)) state = next;
   }
 
-  Future<SearchState> _fetchFirstPage(String query) async {
-    final page = await _repository.searchRepositories(query, page: 1);
+  Future<SearchState> _fetchFirstPage(
+    String query,
+    SearchFilters filters,
+  ) async {
+    final page = await _repository.searchRepositories(
+      filters.buildQuery(query),
+      page: 1,
+      sort: filters.sort,
+    );
     return SearchState(
       query: query,
+      filters: filters,
       items: List.unmodifiable(_dedupe(const [], page.items)),
       totalCount: page.totalCount,
       nextPage: 2,
@@ -105,11 +131,16 @@ class RepositorySearchController extends Notifier<SearchState> {
 
     final generation = _generation;
     final query = state.query;
+    final filters = state.filters;
     final page = state.nextPage;
     state = state.copyWith(isLoadingMore: true, loadMoreError: () => null);
 
     try {
-      final result = await _repository.searchRepositories(query, page: page);
+      final result = await _repository.searchRepositories(
+        filters.buildQuery(query),
+        page: page,
+        sort: filters.sort,
+      );
       if (!_isCurrent(generation)) return;
 
       final items = _dedupe(state.items, result.items);
@@ -120,8 +151,10 @@ class RepositorySearchController extends Notifier<SearchState> {
         isLoadingMore: false,
         // An empty page means GitHub has nothing more, whatever total_count
         // claims (it is an estimate for large result sets).
+        // A page that adds nothing new (all duplicates) also ends the list,
+        // which guards against endless loading if rankings overlap.
         hasMore:
-            result.items.isNotEmpty &&
+            items.length > state.items.length &&
             _hasMore(loaded: items.length, totalCount: result.totalCount),
       );
     } on ValidationException {
@@ -148,7 +181,7 @@ class RepositorySearchController extends Notifier<SearchState> {
   void clear() {
     _debounce?.cancel();
     _generation++;
-    state = const SearchState();
+    state = SearchState(filters: state.filters);
   }
 
   bool _isCurrent(int generation) => ref.mounted && generation == _generation;
