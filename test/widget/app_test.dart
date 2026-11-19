@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,7 +12,6 @@ import 'package:github_repo_list/features/repositories/application/search_contro
 import 'package:github_repo_list/features/repositories/data/models/repository_detail.dart';
 import 'package:github_repo_list/features/repositories/data/models/search_filters.dart';
 import 'package:github_repo_list/features/repositories/data/models/search_page.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/fakes.dart';

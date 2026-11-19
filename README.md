@@ -20,8 +20,7 @@ Extras that make the app nicer to use. None of them needed additional packages.
 
 ## Requirements
 
-- Flutter **3.47 or higher** (developed and tested with Flutter 3.50.0 / Dart 3.14.0, the current stable release)
-  - The assignment asks for Flutter 3.41.x or higher *and* the latest stable packages. The latest packages raise the floor: `flutter_riverpod` 3.5 needs Dart 3.12 (Flutter 3.44), and `material_ui`, where the Material widgets live since Flutter 3.47, needs Flutter 3.47. Run `flutter upgrade` if `flutter pub get` reports an SDK version error.
+- Flutter **3.41.x or higher** (developed with Flutter 3.41.9 / Dart 3.11.5 and also verified on 3.50.0; the app is built on `package:flutter/material.dart`)
 - Android 10 (API 29) or higher recommended, or iOS 15+
 - Xcode (for iOS) and/or Android Studio / Android SDK (for Android)
 
@@ -54,8 +53,7 @@ No API token is needed. The app calls the GitHub REST API without an `Authorizat
 | --- | --- |
 | `http` | HTTP client for the GitHub REST API (required). `package:http/testing.dart` provides `MockClient` for tests. |
 | `shared_preferences` | Persists favorites (required). |
-| `flutter_riverpod` | State management and dependency injection (required). |
-| `material_ui` | Material widgets. Since Flutter 3.50, `flutter create` adds this package, which is where the Material library now lives. It is the official Material library published by the Flutter team (flutter/packages), not an extra third-party library. |
+| `flutter_riverpod` | State management and dependency injection (required). Pinned to `^3.3.1`, the newest release whose Dart SDK requirement (3.7) works on Flutter 3.41; the 3.4+ releases need Dart 3.12 (Flutter 3.44+). |
 
 No other third-party packages are used. Avatar images use `Image.network` with a loading placeholder and an `errorBuilder`, and they request a size-appropriate image from GitHub's avatar CDN (`?s=`) and decode at display size (`cacheWidth`). A disk image cache package was not worth the extra dependency for this scope.
 

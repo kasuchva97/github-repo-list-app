@@ -29,10 +29,8 @@ SearchPage page({
 class FakeGitHubRepository implements GitHubRepository {
   /// Called for every search. Return a value, throw, or return a pending
   /// future to simulate a slow request.
-  FutureOr<SearchPage> Function(String query, int page) onSearch = (
-    query,
-    page,
-  ) => const SearchPage(totalCount: 0, items: []);
+  FutureOr<SearchPage> Function(String query, int page) onSearch =
+      (query, page) => const SearchPage(totalCount: 0, items: []);
 
   FutureOr<RepositoryDetail> Function(String fullName) onFetch = (fullName) =>
       throw UnimplementedError();
