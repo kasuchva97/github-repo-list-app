@@ -21,7 +21,7 @@ Extras that make the app nicer to use. None of them needed additional packages.
 ## Requirements
 
 - Flutter **3.41.x or higher** (developed with Flutter 3.41.9 / Dart 3.11.5 and also verified on 3.50.0; the app is built on `package:flutter/material.dart`)
-- Android 10 (API 29) or higher recommended, or iOS 15+
+- Android 10 (API 29) or higher recommended, or iOS 13+
 - Xcode (for iOS) and/or Android Studio / Android SDK (for Android)
 
 ## Build and run
